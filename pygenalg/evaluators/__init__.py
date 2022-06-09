@@ -1,0 +1,4 @@
+from .basics.basicEvaluator import basicEvaluator
+from .customFunctionEvaluator import customFunctionEvaluator
+from .numberMatchingEvaluator import numberMatchingEvaluator
+from .logisticRegressionEvaluator import logisticRegressionEvaluator
