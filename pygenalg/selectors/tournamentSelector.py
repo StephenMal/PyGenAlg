@@ -26,17 +26,17 @@ class tournamentSelector(basicSelector):
 
     if 'numba' in sys.modules:
         @staticmethod
-        @nb.jit(nopython=True, parallel=True)
+        @nb.jit(nopython=True, parallel=False)
         def _select_parents(fit_lst, size, winchance, n_sel, maximize):
-            parents = np.full(n_sel, -1)
+            parents = np.full((n_sel), -1)
             indxs = np.arange(len(fit_lst))
             for n in prange(n_sel):
                 tourn = np.random.choice(indxs, size=size, replace=False)
 
                 # Get the tournament people's fitnesses
                 tourn_fits = np.zeros(size)
-                for t_indx in tourn:
-                    tourn_fits[t_indx] = fit_lst[t_indx]
+                for t_indx, f_indx in enumerate(tourn):
+                    tourn_fits[t_indx] = fit_lst[f_indx]
 
                 # Organize the indicies in sorted order
                 # Reverse the sorting if maximizing is more important
@@ -49,10 +49,10 @@ class tournamentSelector(basicSelector):
                 #   the correct one
                 for indx in range(size):
                     if np.random.rand() <= winchance:
-                        parents[n] = tourn_argsort[indx]
+                        parents[n] = tourn[tourn_argsort[indx]]
                         break
 
-                # If nothing set, pick the worst individual (low chance)
+                # If nothing set, pick random individual
                 if parents[n] == -1:
                     parents[n] = np.random.choice(tourn_argsort)
 

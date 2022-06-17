@@ -96,3 +96,6 @@ class vectorIndividual(basicIndividual):
 
         if self.__class__ == vectorIndividual:
             self.set_params(**kargs)
+
+    def map(self, arr):
+        return arr.copy()

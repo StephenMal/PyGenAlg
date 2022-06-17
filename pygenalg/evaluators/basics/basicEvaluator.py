@@ -260,6 +260,11 @@ class basicEvaluator(basicComponent):
         self.log.exception('make_template Not Implemented yet', \
                                 err=NotImplementedError)
 
+    
+    def analyze_indv(self, indv):
+        ''' Returns a dictionary containing information of an indv solution '''
+        raise NotImplementedError
+
     def pack(self, **kargs):
         if self.maximize is None:
             raise MissingPackingValue(argname='maximize')

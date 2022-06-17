@@ -39,7 +39,7 @@ class basicOperator(basicComponent):
 
         # Create children npndarrays
         c_arrs = \
-            xov.cross_batch([sel_p[i:i+n] for i in range(0,len(sel_p),xov_n_p)])
+            xov.cross_batch([sel_p[i:i+xov_n_p] for i in range(0,len(sel_p),xov_n_p)])
 
         for child, arr in zip(children_pop, c_arrs):
             child.set_chromo(arr)

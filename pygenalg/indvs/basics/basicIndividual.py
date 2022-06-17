@@ -40,8 +40,18 @@ class basicIndividual(basicComponent):
 
     def set_chromo(self, chromo):
         if not isinstance(chromo, self.chromo_class):
-            raise TypeError('Incorrect chromosome type')
-        self.chromo = chromo
+            if isinstance(chromo, dict):
+                self.chromo = self.unpack_component(chromo)
+            elif isinstance(chromo, np.ndarray):
+                if self.chromo is None:
+                    self.chromo = self.chromo_class(config=self.config,\
+                                                    log=self.log,\
+                                                    runsafe=self.runsafe)
+                self.chromo.set_chromo(chromo)
+            else:
+                raise TypeError(f'Incorrect chromosome type ({type(chromo)})')
+        else:
+            self.chromo = chromo
 
     def set_id(self, new_id):
         if not isinstance(new_id, (str, int)):
@@ -149,7 +159,7 @@ class basicIndividual(basicComponent):
     def get_mapped(self):
         if self.chromo is None:
             raise MissingValue('Chromo must not be None to get mapped chromo')
-        return self._map(self.chromo.to_numpy(return_copy=False))
+        return self.map(self.chromo.to_numpy(make_copy=False))
 
     ''' attrs '''
 
@@ -262,12 +272,12 @@ class basicIndividual(basicComponent):
         return self.fit
 
     def set_fit(self, newfit):
-        if isinstance(newfit, (int, np.integer, np.float_)):
+        if isinstance(newfit, (int, np.integer, np.float_, str)):
             self.fit = float(newfit)
         elif isinstance(newfit, float):
             self.fit = newfit
         else:
-            raise TypeError('fitness need to be int / float')
+            raise TypeError(f'fitness need to be int / float not {type(newfit)}')
 
     def __int__(self):
         if self.fit is None:
@@ -303,23 +313,20 @@ class basicIndividual(basicComponent):
     def pack(self, **kargs):
         dct = super().pack(**kargs)
 
-        dct['rep'] = self.__class__.__name__
-
         if self.id is not None:
             dct['id'] = self.id
         if self.fit is not None:
             dct['fit'] = self.fit
         if self.attrs is not None and len(self.attrs) > 0:
-            dct['attrs'] = self.attrs
+            dct['attrs'] = self.attrs.copy()
         if self.chromo is not None and len(self.chromo) > 0:
             dct['chromo'] = self.chromo.pack()
         return dct
 
     @classmethod
     def unpack(cls, dct):
-        dct = super().unpack(dct)
         if 'chromo' in dct:
-            dct['chromo'] = self.unpack_component(dct['chromo'])
-        if not isinstance(dct['chromo'], self.chromo_class):
-            raise TypeError(f'Expected chromosome of type {self.chromo_class}')
-        return
+            dct['chromo'] = cls.unpack_component(dct['chromo'])
+        if not isinstance(dct['chromo'], cls.chromo_class):
+            raise TypeError(f'Expected chromosome of type {cls.chromo_class}')
+        return super().unpack(dct)

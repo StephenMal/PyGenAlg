@@ -6,6 +6,8 @@ from collections import namedtuple
 from ..exceptions import *
 import sys, random
 import numpy as np
+import os
+from copy import deepcopy
 
 class basicComponent():
 
@@ -147,6 +149,31 @@ class basicComponent():
             kargs.pop('errors')
         return NamedTemporaryFile(*args, **kargs)
 
+    # Create a directory
+    def create_dir(self, prefix='', fol_name=None, full_path=None, **kargs):
+        ''' Creates a directory, uses random numbers as dir name if
+            not provided '''
+
+        if full_path is not None:
+            os.makedirs(full_path, exist_ok=True)
+            return full_path
+
+        # Generate random numbers for directory name if not provided
+        if fol_name is None:
+            fol_name = ''.join([str(random.randint(0,9)) for x in range(15)])
+
+        # Adds the prefix if given
+        if prefix is not None:
+            dir_name = os.path.join(prefix, fol_name)
+        else:
+            dir_name = fol_name
+
+        # Make the directory
+        os.makedirs(dir_name, exist_ok=kargs.get('exist_ok', False))
+
+        # Return the fol_path
+        return dir_name
+
     # Returns whether or not an item is hashable
     @staticmethod
     def _is_hashable(item):
@@ -235,7 +262,7 @@ class basicComponent():
             except:
                 pass
 
-        return dct
+        return deepcopy(dct)
 
     @classmethod
     def unpack(cls, dct):
@@ -253,5 +280,5 @@ class basicComponent():
             import pygenalg.components
         if 'component' not in dct:
             raise MissingPackingVal('component')
-        cls = getattr(sys.modules['components'], dct['component'])
+        cls = getattr(sys.modules['pygenalg.components'], dct['component'])
         return cls.unpack(dct)

@@ -2,13 +2,14 @@ from .basics.basicChromosome import basicChromosome
 from .basics.basicIndividual import basicIndividual
 from ..exceptions import *
 import numpy as np
-import sys
+import sys, math, random
+from statistics import mean
 try:
     import numba as nb
 except:
     pass
 
-class binaryChromosome(basicChromosome):
+class floatingChromosome(basicChromosome):
 
     __slots__ = ()
 
@@ -25,24 +26,24 @@ class binaryChromosome(basicChromosome):
     def __init__(self, **kargs):
         super().__init__(**kargs)
 
-        if self.__class__ == binaryChromosome:
+        if self.__class__ == floatingChromosome:
             self.set_params(**kargs)
 
     def set_dtype(self, dtype):
         if self.runsafe is True and not dtype is int:
-            self.pga_warning('dtype must be int for binary chromosome')
+            self.pga_warning('dtype must be int for floating chromosome')
         self.dtype = int
     def set_dsize(self, dsize):
         if self.runsafe is True and not dsize == 8:
-            self.pga_warning('dsize must be 8 for binary chromosome')
+            self.pga_warning('dsize must be 8 for floating chromosome')
         self.dsize = 8
     def set_minv(self, minv):
         if self.runsafe is True and minv != 0:
-            self.pga_warning('min must be 0 for binary chromosome')
+            self.pga_warning('min must be 0 for floating chromosome')
         self.minv = 0
     def set_maxv(self, maxv):
         if self.runsafe is True and maxv != 1:
-            self.pga_warning('max must be 1 for binary chromosome')
+            self.pga_warning('max must be 1 for floating chromosome')
         self.maxv = 1
     def determine_npdtype(self, *args, **kargs):
         self.np_dtype = np.uint8
@@ -91,6 +92,64 @@ class binaryChromosome(basicChromosome):
 
         def __hash__(self):
             return self._hash(self.vals)
+
+        @staticmethod
+        @nb.jit(nopython=True)
+        def float_search(chr, arrs, gene_len):
+            # Return nothing if arrs[0] is longer
+            if len(arrs[0]) > len(chr):
+                return
+
+            # Sum the beginning
+            cursum = 0
+            for i in range(len(arrs[0])):
+                cursum = cursum + chr[i]
+
+            # Stores all the sums of the subarrs
+            sums = np.zeros(len(arrs))
+            # Iterate through the subarrs
+            for indx in range(len(arrs)):
+                # Sum it
+                sums[indx] = np.sum(arrs[indx])
+                # If sum matches the beggining sum, check for matches
+                if sums[indx] == cursum:
+                    # Assume match is true
+                    match = True
+                    # Iterate through the subarr
+                    for a_indx in range(len(arrs[indx])):
+                        # Compare to chromosome, break if not true
+                        if arrs[indx][a_indx] != chr[a_indx]:
+                            match = False
+                            break
+                    # If match, yield it.
+                    if match == True:
+                        yield (indx, len(arrs[indx]), gene_len+len(arrs[indx]))
+
+            # Iterate trhough
+            for c_indx in range(1,len(chr)-gene_len):
+                # Update the sum
+                cursum = cursum - chr[c_indx-1] + chr[c_indx+len(arrs[0])-1]
+                # Check if matching sum
+                for s_indx in range(len(sums)):
+                    # If the sum matches see if its a true match
+                    if sums[s_indx] == cursum:
+                        match = True # Assume true
+                        # Iterate through chr and subarr
+                        for a_indx in range(len(arrs[s_indx])):
+                            # \/ Verify length doesn't exceed bounds
+                            if (a_indx+c_indx) >= len(chr):
+                                match = False
+                                break
+                            elif arrs[s_indx][a_indx] != chr[a_indx+c_indx]:
+                                # Check for a match /\
+                                match = False
+                                break
+                        # If a match, yield
+                        if match == True:
+                            yield (s_indx, \
+                                   c_indx+len(arrs[s_indx]), \
+                                   c_indx+gene_len+len(arrs[s_indx]))
+            return
     else:
         @staticmethod
         def _min(vals):
@@ -134,6 +193,10 @@ class binaryChromosome(basicChromosome):
                             match_found = False
                     if match_found == True:
                         yield i
+
+        if 'numba' in sys.modules:
+            _search_npsubarr = nb.jit(_search_npsubarr, nopython=True)
+
         @staticmethod
         def _search_mult_npsubarr(arr, subarrs):
             # Get length of array
@@ -184,19 +247,25 @@ class binaryChromosome(basicChromosome):
                                         break
                                 yield i, sub
 
-class binaryIndividual(basicIndividual):
+class floatingIndividual(basicIndividual):
 
-    __slots__ = 'mtype', 'maxm', 'minm', 'signbit', 'n_genes', 'gene_size'
+    __slots__ = ('mtype', 'maxm', 'minm', 'signbit', 'n_genes', 'gene_size')
 
-    chromo_class = binaryChromosome
+    chromo_class = floatingChromosome
 
     DEFAULT_n_genes = None
     DEFAULT_gene_size = None
     DEFAULT_mtype = None
     DEFAULT_maxm = None
     DEFAULT_minm = None
+    DEFAULT_start_seq = np.array([0,0,0])
     DEFAULT_signbit = None
+    DEFAULT_dflt_val = 0
 
+    gene_map = None
+    gene_mat = None
+    start_seq = DEFAULT_start_seq.copy()
+    dflt_val = DEFAULT_dflt_val
     def __init__(self, **kargs):
 
         # Gene information
@@ -208,10 +277,9 @@ class binaryIndividual(basicIndividual):
         # Gene information
         self.n_genes, self.gene_size = None, None
 
-
         super().__init__(**kargs)
 
-        if self.__class__ == binaryIndividual:
+        if self.__class__ == floatingIndividual:
             self.set_params(**kargs)
 
     def set_mtype(self, mtype):
@@ -228,14 +296,14 @@ class binaryIndividual(basicIndividual):
         if self.mtype is not None and not isinstance(maxm, self.mtype):
             raise TypeError('maxm should be mtype')
         if self.mtype is int:
-            self.pga_warning('max does not affect binary indv when mapped to ints')
+            self.pga_warning('max does not affect floating indv when mapped to ints')
         self.maxm = maxm
 
     def set_minm(self, minm):
         if self.mtype is not None and not isinstance(minm, self.mtype):
             raise TypeError('minm should be mtype')
         if self.mtype is int:
-            self.pga_warning('min does not affect binary indv when mapped to ints')
+            self.pga_warning('min does not affect floating indv when mapped to ints')
         self.minm = minm
 
     def set_signbit(self, signbit):
@@ -245,12 +313,44 @@ class binaryIndividual(basicIndividual):
             self.pga_warning('Signbit is irrelevant when mapped to float')
         self.signbit = signbit
 
+    @classmethod
+    def gen_gene_map(cls, n_genes):
+        gene_tag_len = math.ceil(math.log2(n_genes+1))
+        # Gets a numpy array for each tag
+
+        possible = [np.array([int(c) for c in \
+                            format(n, "b").rjust(gene_tag_len, '0')]) \
+                                        for n in range(2**gene_tag_len)]
+        selected = random.sample(possible, n_genes)
+        random.shuffle(selected)
+
+        cls.gene_map = {n:s for n,s in enumerate(selected)}
+        # Get gene matrix
+        cls.gene_mat = \
+            np.array([np.concatenate(cls.start_seq, cls.gene_map[key])] \
+                                        for key in sorted(cls.gene_map.keys()))
+
+    @classmethod
+    def set_gene_map(cls, gene_map):
+        cls.gene_map = gene_map
+
+    @classmethod
+    def set_dflt_val(cls, val):
+        cls.dflt_val = val
+
+    @classmethod
+    def set_start_seq(cls, val):
+        cls.start_seq = val
+
     def set_n_genes(self, n_genes):
         if not isinstance(n_genes, int):
             raise TypeError('n_genes should be int')
         if n_genes < 1:
             raise ValueError('n_genes should be greater than 0')
         self.n_genes = n_genes
+
+        if self.gene_map is None or len(self.gene_map) != self.n_genes:
+            self.gen_gene_map(n_genes)
 
     def set_gene_size(self, gene_size):
         if not isinstance(gene_size, int):
@@ -320,6 +420,24 @@ class binaryIndividual(basicIndividual):
             self.set_signbit(self.config.get('signbit',self.DEFAULT_signbit,\
                                                 dtype=bool))
 
+        if 'dflt_val' in kargs:
+            if kargs.get('dflt_val') != self.dflt_val:
+                self.set_dflt_val(kargs.get('dflt_val'))
+        elif 'dflt_val' in self.config:
+            if self.config.get('dflt_val') != self.dflt_val:
+                self.set_dflt_val(self.config.get('dflt_val'))
+        else:
+            self.config.get('dflt_val', self.dflt_val)
+
+        if 'start_seq' in kargs:
+            if kargs.get('start_seq') != self.start_seq:
+                self.set_start_seq(kargs.get('start_seq'))
+        elif 'start_seq' in self.config:
+            if self.config.get('start_seq') != self.start_seq:
+                self.set_start_seq(self.config.get('start_seq'))
+        else:
+            self.config.get('start_seq', self.start_seq)
+
         # Create copy of kargs not including data that shouldn't be passed up
         kargs = {argname:arg for argname,arg in kargs.items() \
                     if argname not in ('max', 'min', 'dtype')}
@@ -336,64 +454,66 @@ class binaryIndividual(basicIndividual):
     def get_min(self):
         return self.minm
 
+    def map(self, vals, gene_mat, gene_len, is_int, use_signbit, minm, maxm):
+        # Extract genes
+        ext_genes = list(self.chromo.float_search(gene_mat))
+        # Seperate into list and genes
+        gene_nums = [x[0] for x in ext_genes]
+        gene_arrs = np.array([vals[x[1]:x[2]] for x in ext_genes])
+        # Convert the arrays into either integers or floats
+        if self.mtype is int:
+            gvals = self.cnvrt_to_int(gene_arrs, self.use_signbit)
+        elif self.mtype is float:
+            gvals = self.cnvrt_to_flt(gene_arrs, self.minm, self.maxm)
+
+        val_dct = {}
+        for n, v in zip(gene_nums, gene_arrs):
+            val_dct.setdefault(n, []).append(v)
+        if self.mtype is int:
+            val_dct = {n:round(mean(item)) for n, item in val_dct.items()}
+        elif self.mtype is float:
+            val_dct = {n:mean(lst) for n, lst in val_dct.items()}
+        # Replace blank values with 0
+        return np.array([val_dct.get(n, self.dflt_val) for n in range(self.n_genes)])
+
+
     ''' Mapping function '''
     # Set up mapping methods, numba and nonnumba versions
     if 'numba' in sys.modules:
-        @staticmethod
-        @nb.jit(nopython=True, parallel=True)
-        def map(vals, n_genes, is_int, use_signbit, minm, maxm):
-            split = np.split(vals, n_genes)
-            nbits = len(split[0])
-            res = np.zeros(n_genes)
-            if is_int == True:
-                if use_signbit == True:
-                    mulby = np.append(np.zeros(1),\
-                                      np.power(np.ones(nbits-1)*2, \
-                                               np.arange(0, nbits-1)))
-                    for gene_num in nb.prange(n_genes):
-                        spl = split[gene_num]
-                        if spl[0] == 0:
-                            res[gene_num] = sum(spl * mulby)
-                        else:
-                            res[gene_num] = -1 * sum(spl * mulby)
-                    return res
-                else:
-                    mulby = np.power(np.ones(nbits)*2, np.arange(0, nbits))
-                    for gene_num in mb.prange(n_genes):
-                        spl = split[gene_num]
-                        res[gene_num] = sum(spl * mulby)
-                    return res
 
+        @staticmethod
+        @nb.jit(nopython=True)
+        def cnvrt_to_int(arrs, use_signbit):
+            # Create results array
+            res = np.zeros(len(arrs))
+            nbits = len(arrs[0])
+            # Get what we multiply by
+            if use_signbit:
+                # Generate list of numbers
+                mulby = np.append(np.zeros(1),\
+                                  np.power(np.ones(nbits-1)*2, \
+                                           np.arange(0, nbits-1)))
+                for indx in range(len(arrs)):
+                    res[indx] = np.sum(arrs[indx] * mulby)
+                    if arrs[indx][0] == 1:
+                        res[indx] = res[indx] * -1
             else:
                 mulby = np.power(np.ones(nbits)*2, np.arange(0, nbits))
-                oldmax = sum(mulby)
-                for gene_num in nb.prange(n_genes):
-                    spl = split[gene_num]
-                    res[gene_num] = sum(spl * mulby)
-                return ((res / oldmax) * (maxm - minm)) + minm
+                for indx in range(len(arrs)):
+                    res[indx] = np.sum(arrs[indx] * mulby)
 
-    else:
+            return res
+
         @staticmethod
-        def map(vals, n_genes, is_int, use_signbit, minm, maxm):
-            split = np.split(vals, n_genes)
-            nbits = len(split[0])
-            if is_int == True:
-                if use_signbit:
-                    mulby = np.array([0] + [2 ** i for i in range(0, nbits-1)])
-                    return np.array([splt*mulby if splt[0] == 0 \
-                                                else -1*splt*mulby \
-                                                            for splt in split])
-                else:
-                    mulby = np.power(np.ones(nbits)*2, np.arange(0, nbits))
-                    mulby = np.array([2 ** i for i in range(0, nbits)])
-                    return np.array([splt*mulby for splt in split])
-            else:
-                mulby = np.array([2 ** i for i in range(0, nbits)])
-                oldmax = sum(mulby)
-                for gene_num in range(n_genes):
-                    spl = split[gene_num]
-                    res[gene_num] = -1 * sum(spl * mulby)
-                return ((res / oldmax) * (maxm - minm)) + minm
+        @nb.jit(nopython=True)
+        def cnvrt_to_flt(arrs, minm, maxm):
+            res = np.zeros(len(arrs))
+            nbits = len(arrs[0])
+            mulby = np.power(np.ones(nbits)*2, np.arange(0, nbits))
+            oldmax = sum(mulby)
+            for arr_indx in range(len(arrs)):
+                res[gene_num] = sum(arrs[arr_indx] * mulby)
+            return ((res / oldmax) * (maxm - minm)) + minm
 
 
     def get_mapped(self):

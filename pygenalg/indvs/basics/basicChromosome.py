@@ -672,7 +672,9 @@ class basicChromosome(basicComponent):
     ''' Counting '''
 
     # Stats
-    def count(self, item):
+    def count(self, item=None):
+        if item is not None:
+            return int(np.count_nonzero(self.vals == 2))
         if self.dtype is int:
             return {int(key):int(item) for key,item in \
                                 np.unique(self.vals, return_counts=True)}
@@ -852,11 +854,11 @@ class basicChromosome(basicComponent):
     @classmethod
     def unpack(cls, dct):
 
-        for argname in ('vals', 'varlen'):
+        for argname in ('vals', ):
             if argname not in dct:
                 raise MissingPackingVal(argname)
 
-        if self.DEFAULT_dtype is None and 'dtype' not in dct:
+        if cls.DEFAULT_dtype is None and 'dtype' not in dct:
             raise MissingPackingVal('dtype')
 
         if 'dtype' in dct and isinstance(dct['dtype'], str):
@@ -865,13 +867,15 @@ class basicChromosome(basicComponent):
             elif dct['dtype'] == 'int':
                 dct['dtype'] = int
 
-        if not isinstance(dct['varlen'], (bool, int)):
-            raise TypeError('varlen should be a bool')
-        elif dct['varlen'] == 0 or dct['varlen'] is False:
-            dct['length'] = len(dct['vals'])
-        else:
-            for argname in ('minlen', 'maxlen'):
-                if argname not in dct:
-                    raise MissingPackingVal(argname)
+        if 'varlen' in dct:
+            if dct['varlen'] == 0 or dct['varlen'] == False:
+                dct['varlen'] = False
+                if 'length' not in dct:
+                    dct['length'] = len(dct['vals'])
+            elif dct['varlen'] == 1 or dct['varlen'] == True:
+                dct['varlen'] = True
+                for argname in ('minlen', 'maxlen'):
+                    if argname not in dct:
+                        raise MissingPackingVal(argname)
 
         return super().unpack(dct)

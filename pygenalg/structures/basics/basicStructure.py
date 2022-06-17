@@ -38,7 +38,9 @@ class basicStructure(basicComponent):
         if not isinstance(selector, basicSelector):
             if issubclass(selector, basicSelector):
                 if config is None:
-                    return selector(config=self.config)
+                    return selector(config=self.config,\
+                                     log=self.log,\
+                                     runsafe=self.runsafe)
                 elif isinstance(config, (dict, vcfg)):
                     return selector(config=config)
                 else:
@@ -60,7 +62,9 @@ class basicStructure(basicComponent):
         if not isinstance(evaluator, basicEvaluator):
             if issubclass(evaluator, basicEvaluator):
                 if config is None:
-                    return evaluator(config=self.config)
+                    return evaluator(config=self.config,\
+                                     log=self.log,\
+                                     runsafe=self.runsafe)
                 elif isinstance(config, (dict, vcfg)):
                     return evaluator(config=config)
                 else:
@@ -82,7 +86,9 @@ class basicStructure(basicComponent):
         if not isinstance(population, basicPopulation):
             if issubclass(population, basicPopulation):
                 if config is None:
-                    return population(config=self.config)
+                    return population(config=self.config,\
+                                      log=self.log,\
+                                      runsafe=self.runsafe)
                 elif isinstance(config, (dict, vcfg)):
                     return population(config=config)
                 else:
@@ -104,7 +110,9 @@ class basicStructure(basicComponent):
         if not isinstance(gen_op, basicOperator):
             if issubclass(gen_op, basicOperator):
                 if config is None:
-                    return gen_op(config=self.config)
+                    return gen_op(config=self.config,\
+                                  log=self.log,\
+                                  runsafe=self.runsafe)
                 elif isinstance(config, (dict, vcfg)):
                     return gen_op(config=config)
                 else:

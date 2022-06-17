@@ -15,7 +15,7 @@ from tqdm import tqdm, trange
 # Built-in imports
 from collections import namedtuple
 from time import sleep
-import sys
+import sys, random, json, os
 
 class generationStructure(basicStructure):
 
@@ -32,6 +32,21 @@ class generationStructure(basicStructure):
         super().__init__(*args, **kargs)
 
     def run(self, **kargs):
+        # Create output directory
+
+        if 'dir_path' in kargs:
+            outdir = self.create_dir(full_path=kargs.get('dir_path'))
+            self.config.get('dir_path', outdir)
+        elif 'dir_path' in self.config:
+            outdir = self.create_dir(full_path=self.config.get('dir_path'))
+        else:
+            outdir = self.create_dir(prefix='results')
+            self.config.get('dir_path', outdir)
+
+        tqdm.write(f'Output Directory: {outdir}')
+
+        self.log.set_file_out(os.path.join(outdir, 'log.out'), append=False)
+
 
         # Whether or not to disable the tqdm bar
         if 'disable_tqdm' in kargs:
@@ -60,6 +75,15 @@ class generationStructure(basicStructure):
             raise TypeError('n_gens should be an int')
         if not n_gens >= 1:
             raise ValueError('n_gens should be greater than 0')
+
+        # Export population at each generation
+        if 'store_each_gen' in self.config:
+            store_each_gen = self.config.get('store_each_gen', dtype=bool)
+        else:
+            store_each_gen = kargs.get('store_each_gen', False)
+
+        if store_each_gen:
+            gen_dir = self.create_dir(prefix=outdir, fol_name='populations')
 
         # Get n_runs & n_gens
         self.log.info(f'Starting runs ({n_runs} runs, {n_gens} gens)')
@@ -111,10 +135,6 @@ class generationStructure(basicStructure):
         # Iterate through run
         for run in runbar:
 
-            genbar = trange(1, n_gens+1, unit='gen', colour='#088F8F', \
-                desc='Initializing', disable = disable_tqdm, \
-                leave=False)
-
             # Generate the gen loading bar
             self.log.info(f'Starting run #{run+1}/{n_runs}')
 
@@ -126,9 +146,7 @@ class generationStructure(basicStructure):
             children = fixedPopulation(config=self.config,\
                                       log=self.log,\
                                       runsafe=self.runsafe)
-            popsize = len(parents)
-            if len(parents) != len(children):
-                raise Exception('Number of parents != number of children')
+            popsize = self.config.get('popsize', dtype=int, mineq=2)
 
             # Generate a starting population
             self.log.debug('0\t| Generating starting population')
@@ -143,8 +161,16 @@ class generationStructure(basicStructure):
             self.log.debug('0\t| Selecting parents from initial population')
             selected = selector.select_parents(parents,  n=popsize)
 
+            # Create file storing this runs' pop
+            if store_each_gen:
+                popfile = open(os.path.join(gen_dir, f'run{run}.json'), 'w')
+                json.dump(parents.pack(), popfile)
+
+
             # Iterate through the generations
-            genbar.set_description('Gens', refresh=True)
+            genbar = trange(1, n_gens+1, unit='gen', colour='#088F8F', \
+                desc='Gens', disable = disable_tqdm, \
+                leave=False)
             gen_lst = []
             for gen in genbar:
 
@@ -163,7 +189,9 @@ class generationStructure(basicStructure):
                 evaluator.evaluate_batch(parents.get_poplst())
 
                 best = evaluator.get_best(level=1)
-                self.log.info(f'{gen}\t| Best fitness: ' + str(best['fit']))
+                best_fit = best['fit']
+                self.log.info(f'{gen}\t| Best fitness: ' + str(best_fit))
+                genbar.set_postfix_str(f'Best Fit: {round(best_fit, 4)}')
 
                 # Select
                 self.log.debug(f'{gen}\t| Selecting children to create new generation')
@@ -179,6 +207,21 @@ class generationStructure(basicStructure):
                 # Wipe what is stored for this generation's best
                 evaluator.wipe_minmax(level=1)
 
+                # If storing population, do it
+                if store_each_gen:
+                    popfile.write('\n')
+                    json.dump(parents.pack(), popfile)
+
+            best_fit = evaluator.get_best(level=3)['fit']
+            runbar.set_postfix_str(f'Best Fit: {round(best_fit, 4)}')
+            with open(os.path.join(outdir, 'solution_indv.json'), 'w') as F:
+                json.dump(evaluator.get_best(level=3), F)
+
+            if store_each_gen:
+                with open(os.path.join(gen_dir, f'sol{run}.json'), 'w') as F:
+                    json.dump(evaluator.get_best(level=3), F)
+
+
             genbar.reset()
 
             # Append all results from generation
@@ -191,8 +234,17 @@ class generationStructure(basicStructure):
             # Wipe best for run
             evaluator.wipe_minmax(level=2)
 
+            if store_each_gen:
+                popfile.close()
+
         genbar.close()
         runbar.close()
+
+        # Output config file there (wait till end to include any defaults)
+        with open(os.path.join(outdir, 'config.json'), 'w') as F:
+            self.config.json_dump(F)
+        with open(os.path.join(outdir, 'config_sum.txt'), 'w') as F:
+            F.write(self.config.sumstr())
 
         res_tpl = self.tot_tpl(runs=results,\
                             best_indv=evaluator.get_best(level=3),\

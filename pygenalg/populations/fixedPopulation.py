@@ -9,6 +9,7 @@ class fixedPopulation(basicPopulation):
         super().__init__(**kargs)
         self.varsize, self.minsize, self.maxsize = False, None, None
 
+
         if self.__class__ == fixedPopulation:
             self.set_params(**kargs)
 
@@ -28,15 +29,14 @@ class fixedPopulation(basicPopulation):
         return False
 
     def set_params(self, **kargs):
+
         for argname in ('varsize', 'maxsize', 'minsize'):
             if argname in kargs:
                 kargs.pop(argname)
                 self.pga_warning(f'Cannot set {argname} in fixedPopulation')
 
-
         # Some default values
         if self.popsize is None and 'popsize' not in kargs:
             self.set_popsize(self.config.get('popsize',200,dtype=int,mineq=2))
-
 
         super().set_params(**kargs)

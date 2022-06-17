@@ -22,39 +22,39 @@ class twoPointCrossover(basicCrossover):
 
     if 'numba' in sys.modules:
         @staticmethod
-        @nb.jit(nopython=True)
-        def _cross(chromo1, chromoe2):
-            split_pt1 = np.random.randint(0, len(chromos0))
-            split_pt2 = np.random.randint(0, len(chromos0))
+        #@nb.jit(nopython=False)
+        def _cross(chromo1, chromo2):
+            split_pt1 = np.random.randint(0, len(chromo1))
+            split_pt2 = np.random.randint(0, len(chromo1))
 
             if split_pt1 > split_pt2:
                 split_pt1, split_pt2 = split_pt2, split_pt1
             elif split_pt1 == split_pt2:
-                return [np.append(chromos1[:split_pt1], chromos1[split_pt1:]),\
-                        np.append(chromos2[:split_pt1], chromos2[split_pt1:])]
+                return [np.append(chromo1[:split_pt1], chromo1[split_pt1:]),\
+                        np.append(chromo2[:split_pt1], chromo2[split_pt1:])]
 
-            return [np.concatenate((chromos1[:split_pt1], \
-                                    chromos2[split_pt1:split_pt2], \
-                                    chromos1[split_pt2:])), \
-                    np.concatenate((chromos2[:split_pt1], \
-                                    chromos1[split_pt1:split_pt2], \
-                                    chromos2[split_pt2:]))]
+            return [np.concatenate((chromo1[:split_pt1], \
+                                    chromo2[split_pt1:split_pt2], \
+                                    chromo1[split_pt2:])), \
+                    np.concatenate((chromo2[:split_pt1], \
+                                    chromo1[split_pt1:split_pt2], \
+                                    chromo2[split_pt2:]))]
     else:
         @staticmethod
         def _cross(chromo1, chromo2):
 
-            split_pt1 = random.randint(0, len(chromos0))
-            split_pt2 = random.randint(0, len(chromos0))
+            split_pt1 = random.randint(0, len(chromo1))
+            split_pt2 = random.randint(0, len(chromo1))
 
             if split_pt1 > split_pt2:
                 split_pts2 = split_pts1
             elif split_pt1 == split_pt2:
-                return [np.append(chromos1[:split_pt1], chromos2[split_pt1:]),\
-                        np.append(chromos2[:split_pt1], chromos1[split_pt1:])]
+                return [np.append(chromo1[:split_pt1], chromo2[split_pt1:]),\
+                        np.append(chromo2[:split_pt1], chromo1[split_pt1:])]
 
-            return [np.concatenate((chromos1[:split_pt1], \
-                                    chromos2[split_pt1:split_pt2], \
-                                    chromos1[split_pt2:])), \
-                    np.concatenate((chromos2[:split_pt1], \
-                                    chromos1[split_pt1:split_pt2], \
-                                    chromos2[split_pt2:]))]
+            return [np.concatenate((chromo1[:split_pt1], \
+                                    chromo2[split_pt1:split_pt2], \
+                                    chromo1[split_pt2:])), \
+                    np.concatenate((chromo2[:split_pt1], \
+                                    chromo1[split_pt1:split_pt2], \
+                                    chromo2[split_pt2:]))]

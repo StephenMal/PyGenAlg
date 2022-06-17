@@ -3,8 +3,21 @@ from ...indvs.basics import basicChromosome, basicIndividual
 from ...exceptions import *
 import pygenalg.indvs
 import inspect, sys
-from statistics import mean
+from statistics import mean, stdev
 from copy import deepcopy
+from collections.abc import MutableMapping
+import numpy as np
+import math
+
+try:
+    from scipy.spatial import distance_matrix
+except:
+    pass
+
+try:
+    import numba as nb
+except:
+    pass
 
 class basicPopulation(basicComponent):
 
@@ -75,25 +88,106 @@ class basicPopulation(basicComponent):
         else:
             raise ValueError('Cannot extend to fix length')
 
+    def pop(self, indx):
+        return self.poplst.pop(indx)
+
+    def __iter__(self):
+        if self.poplst is None:
+            return iter([])
+        return self.poplst.__iter__()
+
+    def __len__(self):
+        if self.poplst is None:
+            return 0
+        return self.__len__(self.poplst)
+
+    ''' Analytics '''
+
     def sort(self, **kargs):
         self.poplst.sort(**kargs)
 
-    def mean(self):
-        return mean([indv.get_fit() for indv in self.poplst])
+    def mean(self, z=None):
+        if z is None:
+            return mean((indv.get_fit() for indv in self.poplst))
+        elif z is not None:
+            fits = [indv.get_fit() for indv in self.poplst]
+            avg, std = mean(fits), stdev(fits)
+            return avg, z*(std/math.sqrt(len(fits)))
 
-    def max(self):
+    def stdev(self):
+        return stdev((indv.get_fit() for indv in self.poplst))
+
+    def nstdev(self):
+        lst = [indv.get_fit() for indv in self.poplst]
+        meanv = mean(lst)
+        # If meanv is 0, we cannot devide stdev by it, return infinity
+        if meanv == 0:
+            return float('inf')
+        return stdev(lst) / meanv
+
+    def max_indv(self):
         max_indv, max_fit = None, float('-inf')
         for indv in self.poplst:
             if indv.get_fit() > max_fit:
                 max_indv, max_fit = indv, indv.get_fit()
         return max_indv
 
-    def min(self):
+    def max(self):
+        return max((indv.get_fit() for indv in self.poplst))
+
+    def min_indv(self):
         min_indv, min_fit = None, float('inf')
         for indv in self.poplst:
             if indv.get_fit() < min_fit:
                 min_indv, min_fit = indv, indv.get_fit()
         return min_indv
+
+    def min(self):
+        return min((indv.get_fit() for indv in self.poplst))
+
+    def consolidate_attrs(self):
+        ''' Consolidates the attribute dictionaries '''
+        consolidated, keys = dict(), set()
+        for n, attr in enumerate((indv.get_attrs() for indv in self.poplst)):
+            keys.update(attr.keys())
+            for key in keys:
+                if key in consolidated:
+                    consolidated[key].append(attr.get(key))
+                else:
+                    consolidated.setdefault(key, [None]*n).append(attr.get(key))
+        return consolidated
+
+    ''' Distance '''
+    if 'scipy' in sys.modules:
+        def get_distance(self):
+            return squareform(pdist((indv.get_mapped() for indv in pop), \
+                                            metric='euclidean'))
+    elif 'numba' in sys.modules:
+        @staticmethod
+        #@nb.jit(nopython=False)
+        def _get_distance(mat):
+            results = np.zeros((len(mat), len(mat)))
+            for i in range(len(mat)):
+                for j in range(len(mat)):
+                    results[i][j] = np.linalg.norm(mat[i]-mat[j])
+            return results
+        def get_distance(self):
+            return self._get_distance(np.array([indv.get_mapped() for indv in self.poplst]))
+    else:
+        def get_distance(self):
+            mat = np.array([indv.get_mapped() for indv in pop])
+            results = np.zeros(mat)
+            for i in range(len(mat)):
+                for j in range(len(mat)):
+                    results[i][j] = numpy.linalg.norm(mat[i]-mat[j])
+            return results
+    def apply_distance(self):
+        dists = self.get_distance()
+        for i, indv in enumerate(self.poplst):
+            indv.set_attr('avg_map_dist', mean(dists[i]))
+
+
+    ''' Generation '''
 
     def generate(self, *args, **kargs):
         if 'size' in kargs:
@@ -116,20 +210,6 @@ class basicPopulation(basicComponent):
         if kargs.get('generate_indvs', True):
             for indv in self.poplst:
                 indv.generate()
-
-
-    def pop(self, indx):
-        return self.poplst.pop(indx)
-
-    def __iter__(self):
-        if self.poplst is None:
-            return iter([])
-        return self.poplst.__iter__()
-
-    def __len__(self):
-        if self.poplst is None:
-            return 0
-        return self.__len__(self.poplst)
 
     ''' Parameters '''
 
@@ -186,7 +266,7 @@ class basicPopulation(basicComponent):
         if self.runsafe:
             if not isinstance(poplst, list):
                 raise TypeError('Expected a list of individuals')
-            if not all([isinstance(indv, basicIndividual) for indv in poplst]):
+            if not all((isinstance(indv, (dict, basicIndividual)) for indv in poplst)):
                 raise TypeError('Expected a list of individuals')
             if self.minsize is not None and len(poplst) < self.minsize:
                 raise ValueError(f'Expected a list of at least {self.minsize}')
@@ -196,9 +276,15 @@ class basicPopulation(basicComponent):
                     self.varsize is False and self.popsize is not None and \
                     len(poplst) != self.popsize:
                 raise ValueError(f'Expected a list of length {self.popsize}')
-        if save_copy:
+
+        if any(isinstance(indv, dict) for indv in poplst):
+            self.poplst = [self.unpack_component(indv) \
+                                        if isinstance(indv, dict) else indv \
+                                            for indv in poplst]
+        elif save_copy:
             self.poplst = deepcopy(poplst)
-        self.poplst = poplst
+        else:
+            self.poplst = poplst
 
     def set_rep(self, rep):
         if isinstance(rep, str):
@@ -285,6 +371,7 @@ class basicPopulation(basicComponent):
         elif self.popsize is None and 'popsize' in self.config:
             self.set_popsize(self.config.get('popsize', dtype=int, mineq=2))
 
+
         if 'poplst' in kargs:
             self.set_poplst(kargs.get('poplst'))
         elif self.poplst is None and 'poplst' in self.config:
@@ -303,37 +390,50 @@ class basicPopulation(basicComponent):
             elif self.varsize is False and self.popsize is None:
                 raise MissingValue('Need popsize if varsize is False')
 
+    ''' Export '''
+
+    def to_df(self):
+        if 'pandas' not in sys.modules:
+            try:
+                import pandas as pd
+            except:
+                raise ModuleNotFoundError('Need pandas to convert to dataframe')
+        return pd.json_normalize([indv.pack() for indv in self.poplst],\
+                                                            orient='columns')
+
+
     ''' Packing '''
-
-    __slots__ = ('poplst', 'rep',\
-                 'popsize', 'maxsize', 'minsize', 'varsize')
-
     @staticmethod
-    def compress_dict(*dcts, prefix=None):
+    def compress_dict(*dcts, prefix='', sep='.'):
 
         if len(dcts) == 0:
             return {}
 
-        def _flatten_dict_gen(d, parent_key, sep):
+        def _flatten_dict_gen(d, parent_key='', sep=sep):
             for k, v in d.items():
-                new_key = parent_key + sep + k if parent_key else k
+                new_key = f'{parent_key}{sep}{k}' if parent_key else k
                 if isinstance(v, MutableMapping):
                     yield from flatten_dict(v, new_key, sep=sep).items()
                 else:
                     yield new_key, v
 
-        def flatten_dict(d, parent_key='', sep='.'):
+        def flatten_dict(d, parent_key=prefix, sep=sep):
             return dict(_flatten_dict_gen(d, parent_key, sep))
 
-        dcts = [flatten_dict(dct) for dct in dcts]
+        dcts = [flatten_dict(d, parent_key=prefix, sep=sep) for d in dcts]
 
-        # Compressed dictionary
-        cmprsd = {}
-        # Make lists for dicts
-        for dct in dcts:
-            for n, (key, item) in enumerate(dct.items()):
-                if inspect.isclass(item):
+
+        cmprsd, keys = dict(), set()
+        for n, d in enumerate(dcts):
+            keys.update(d.keys())
+            for key in keys:
+                item = d.get(key)
+                if item is None:
+                    pass
+                elif inspect.isclass(item):
                     item = item.__name__
+                elif isinstance(item, np.ndarray):
+                    item = item.tolist()
                 if key in cmprsd:
                     cmprsd[key].append(item)
                 else:
@@ -343,22 +443,66 @@ class basicPopulation(basicComponent):
         for key, item in cmprsd.items():
             # Verify uniform values
             v = item[0]
-            if any((i != v for i in item)):
+            if isinstance(v, list) or any((i != v for i in item)):
                 continue
             # If uniform values, place that value there
             cmprsd[key] = v
 
         return cmprsd
 
+    @staticmethod
+    def decompress_dict(dct, prefix='', sep='.', n=None, split=True):
 
-    def pack(self, compress=True):
+        # Determine an N value if none is provided
+        if n is None:
+            n = 1
+            for k, i in dct.items():
+                if isinstance(i, list):
+                    n = max(n, len(i))
 
-        if self.rep is None:
-            raise MissingPackingVal(argname='rep')
+        # Decompress the values
+        d_dct = {}
+        if n > 1:
+            for k, i in dct.items():
+                if not isinstance(i, list):
+                    d_dct[k] = [deepcopy(i) for x in range(n)]
+                else:
+                    d_dct[k] = i
+        else:
+            for k, i in dct.items():
+                if isinstance(i, list) and len(i) == 1:
+                    d_dct[k] = i[0]
+
+        # Split
+        if n > 1 and split:
+            dcts = [{k:item[i] for k,item in d_dct.items()} for i in range(n)]
+        else:
+            dcts = [d_dct]
+
+        dct_lst = []
+        for dct in dcts:
+            final = {}
+            for k, i in dct.items():
+                if sep in k:
+                    keys = k.split(sep)
+                    cur_d = final
+                    for key in keys[:-1]:
+                        cur_d = cur_d.setdefault(key, {})
+                    cur_d[keys[-1]] = i
+                else:
+                    final[k] = i
+            dct_lst.append(final)
+
+        return dct_lst
+
+
+    def pack(self, **kargs):
+
+        dct = super().pack(**kargs)
 
         ''' Population parameters '''
-        dct = {'popsize':self.get_popsize(),
-               'rep':self.rep.__name__}
+        dct.update({'popsize':self.get_popsize(),
+               'rep':self.rep.__name__})
 
         if self.maxsize is None or self.minsize is None:
             if self.varsize is None or self.varsize is True:
@@ -370,8 +514,7 @@ class basicPopulation(basicComponent):
         ''' Individual packaging '''
         #   Reduces repetitive values in effort to reduce memory usage
         # Package the individuals
-
-        if compress and self.poplst is not None:
+        if kargs.get('compress', True) and self.poplst is not None:
             packed_indvs = \
                 self.compress_dict(*[indv.pack(**kargs) for indv in self.poplst])
             dct['packed_poplst'] = packed_indvs
@@ -387,7 +530,10 @@ class basicPopulation(basicComponent):
             raise MissingPackingVal(argname='rep')
 
         if 'packed_poplst' in dct:
-            if 'popsize' not in dct:
-                raise MissingPackingVal(argname='popsize')
+            if 'popsize' in dct:
+                dct['poplst'] = self.decompress_dict(dct['packed_poplst'],\
+                                                     n=int(dct['popsize']))
+            else:
+                dct['poplst'] = self.decompress_dict(dct['packed_poplst'])
 
-        super().unpack(dct)
+        return super().unpack(dct)

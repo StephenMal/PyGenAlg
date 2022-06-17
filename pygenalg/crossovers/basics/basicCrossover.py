@@ -1,5 +1,8 @@
 from ...basics import basicComponent
 from ...exceptions import *
+from ...indvs.basics.basicIndividual import basicIndividual
+from ...indvs.basics.basicChromosome import basicChromosome
+
 
 class basicCrossover(basicComponent):
 
@@ -123,6 +126,7 @@ class basicCrossover(basicComponent):
                                 f'{type(groups)}')
             # Verify each item inside the list/tuple is a list/tuple and those
             #   contain basic Individuals and has the correct num needed
+
             if not all((isinstance(grp, (list, tuple)) and \
                 all((isinstance(indv, (basicIndividual)) for indv in grp)) and \
                     len(grp) == num_needed
@@ -133,7 +137,7 @@ class basicCrossover(basicComponent):
 
         children = []
         for group in groups:
-            ch = self._cross([indv.to_numpy(make_copy=False) for indv in group])
+            ch = self._cross(*[indv.to_numpy(make_copy=False) for indv in group])
             children.extend(ch)
         return children
 
