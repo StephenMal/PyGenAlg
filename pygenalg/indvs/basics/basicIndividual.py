@@ -10,7 +10,7 @@ except:
 
 class basicIndividual(basicComponent):
 
-    __slots__ = ('chromo', 'fit', 'id', 'attrs')
+    __slots__ = ('chromo', 'fit', 'id', 'attrs', 'n_genes')
 
     chromo_class = basicChromosome
 
@@ -21,6 +21,8 @@ class basicIndividual(basicComponent):
         super().__init__(**kargs)
 
         self.chromo, self.fit, self.id, self.attrs = None, None, None, None
+
+        self.n_genes = None
 
         if self.__class__ == basicIndividual:
             self.set_params(**kargs)
@@ -52,6 +54,14 @@ class basicIndividual(basicComponent):
                 raise TypeError(f'Incorrect chromosome type ({type(chromo)})')
         else:
             self.chromo = chromo
+
+    def set_n_genes(self, n_genes):
+        if not isinstance(n_genes, int):
+            if isinstance(n_genes, float) and n_genes.is_integer():
+                n_genes = int(n_genes)
+            elif isinstance(n_genes, str):
+                n_genes = int(n_genes)
+        self.n_genes = n_genes
 
     def set_id(self, new_id):
         if not isinstance(new_id, (str, int)):
@@ -86,6 +96,11 @@ class basicIndividual(basicComponent):
             if 'id' in self.config:
                 raise Exception('id cannot be in config')
             self.set_id(self.get_next_id())
+
+        if 'n_genes' in kargs:
+            self.set_n_genes(kargs.get('n_genes'))
+        elif self.n_genes is None and 'n_genes' in self.config:
+            self.set_n_genes(self.config.get('n_genes', dtype=int, mineq=1))
 
         if 'attrs' in kargs:
             self.set_attrs(kargs.get('attrs'))

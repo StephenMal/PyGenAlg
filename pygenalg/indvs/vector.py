@@ -79,6 +79,27 @@ class vectorChromosome(basicChromosome):
                 kargs.pop(argname)
             except KeyError:
                 pass
+
+        # Handles length and n_genes 
+        if 'n_genes' in kargs or 'n_genes' in self.config:
+            # Get n_genes
+            n_genes = None
+            if 'n_genes' in kargs:
+                n_genes = kargs.get('n_genes')
+            elif 'n_genes' in self.config:
+                n_genes = self.config.get('n_genes', dtype=int, mineq=1)
+
+            if 'length' in kargs or 'length' in self.config:
+                length = None
+                if 'length' in kargs:
+                    length = kargs.get('length')
+                elif 'length' in self.config:
+                    length = self.config.get('length', dtype=int, mineq=1)
+                if length != n_genes:
+                    raise ValueError('Length and n_genes should be equal in VGA')
+            else:
+                kargs['length'] = n_genes
+
         super().set_params(**kargs)
 
     def pack(self, **kargs):

@@ -136,7 +136,7 @@ class logisticRegressionEvaluator(basicEvaluator):
                     raise MissingValue('Missing train_feats')
 
             # Get all the chromosomes
-            arrs = np.array([indv.to_numpy(make_copy=False) for indv in batch])
+            arrs = np.array([indv.get_mapped() for indv in batch])
             # Get weights from chromosomes as arrays
             weights = self.chrs_to_weights(arrs, self.toggles, self.has_constant)
 

@@ -324,6 +324,9 @@ class binaryIndividual(basicIndividual):
         kargs = {argname:arg for argname,arg in kargs.items() \
                     if argname not in ('max', 'min', 'dtype')}
 
+        if self.gene_size is not None and self.n_genes is not None:
+            kargs['length'] = self.gene_size * self.n_genes
+
         super().set_params(**kargs)
 
     ''' Overwrite key get functions to make more sense with mapping '''
@@ -340,7 +343,7 @@ class binaryIndividual(basicIndividual):
     # Set up mapping methods, numba and nonnumba versions
     if 'numba' in sys.modules:
         @staticmethod
-        @nb.jit(nopython=True, parallel=True)
+        #@nb.jit(nopython=True, parallel=True)
         def map(vals, n_genes, is_int, use_signbit, minm, maxm):
             split = np.split(vals, n_genes)
             nbits = len(split[0])
@@ -427,7 +430,7 @@ class binaryIndividual(basicIndividual):
                         self.mtype == int, \
                         self.signbit, \
                         minm, maxm)
-
+                        
     def pack(self, **kargs):
         dct = super().pack(**kargs)
 
