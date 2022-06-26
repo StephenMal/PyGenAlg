@@ -51,8 +51,10 @@ class generationStructure(basicStructure):
         # Whether or not to disable the tqdm bar
         if 'disable_tqdm' in kargs:
             disable_tqdm = kargs.get('disable_tqdm')
+            tqdm.write('A')
         else:
             disable_tqdm = self.config.get('disable_tqdm', False, dtype=bool)
+            tqdm.write(f'B {disable_tqdm}')
         if not isinstance(disable_tqdm, bool):
             raise TypeError('disable_tqdm should be a bool')
 
