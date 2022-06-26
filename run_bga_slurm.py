@@ -12,10 +12,12 @@ mkdir $SLURM_JOB_ID
 export debug_logs="$SLURM_JOB_ID/job_$SLURM_JOB_ID.log"
 export benchmark_logs="$SLURM_JOB_ID/job_$SLURM_JOB_ID.log"
 
-module load python/python-2.7.14-ic-2017.1.043
-module load openmpi/openmpi-2.1.1-ic-2017.1.043
+echo "conda part"
 
-conda activate pga_adhd_runs
+source /home/${USER}/.bashrc
+source activate pga_adhd_runs
+
+echo "Made it passed the conda part"
 
 ## Enter Working Directory ##
 cd $SLURM_SUBMIT_DIR
