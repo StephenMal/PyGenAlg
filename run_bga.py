@@ -47,16 +47,6 @@ for file_n in tqdm(os.listdir('datasets/driving'), leave=False):
     elif not incl_turns:
         continue
 
-    # Skip if we already got this directory results
-    dir_path = f'results/bga-{split[0]}-{split[1]}-{split[2]}/'
-    if os.path.isdir(dir_path):
-        if 'config.json' in os.listdir(dir_path):
-            continue
-        if os.path.exists(os.path.join(dir_path, 'populations')) and \
-                    len(os.listdir(os.path.join(dir_path, 'populations'))) == 100:
-            continue
-    files.append(file_n)
-
 
 
 for file_n in tqdm(files):
@@ -66,6 +56,15 @@ for file_n in tqdm(files):
             split = file_n.split('-')
 
             dir_path = f'results/bga-{split[0]}-{split[1]}-{split[2]}-{gene_size}/'
+
+            # Skip if we already got this directory results
+            if os.path.isdir(dir_path):
+                if 'config.json' in os.listdir(dir_path):
+                    continue
+                if os.path.exists(os.path.join(dir_path, 'populations')) and \
+                            len(os.listdir(os.path.join(dir_path, 'populations'))) == 100:
+                    continue
+            files.append(file_n)
 
 
             # Get the training file
