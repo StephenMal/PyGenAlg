@@ -20,7 +20,6 @@ log = psuedologger(file_out='log.out', file_lvl=10)
 #train_file, test_file = sys.argv[1], sys.argv[2]
 
 #dir_path = f'results/bga_{split[0]}_{split[1]}_{split[2]}/'
-
 files = []
 for file_n in tqdm(os.listdir('datasets/driving'), leave=False):
 
@@ -29,8 +28,8 @@ for file_n in tqdm(os.listdir('datasets/driving'), leave=False):
 
     split = file_n.split('-')
 
-    if split[0] == 'all_indvs':
-        if not incl_all_indvs:
+    if not incl_all_indvs:
+        if plit[0] == 'all_indvs':
             continue
     elif not incl_spc_indvs:
         continue
@@ -41,13 +40,13 @@ for file_n in tqdm(os.listdir('datasets/driving'), leave=False):
     elif not incl_spc_tracks:
         continue
 
-    if split[2] == 'all_track':
-        if not incl_all_track:
+    if not incl_all_track:
+        if split[2] == 'all_track':
             continue
     elif not incl_turns:
         continue
 
-
+    files.append(file_n)
 
 for file_n in tqdm(files):
     for gene_size in (6, 12, 18):
@@ -60,9 +59,11 @@ for file_n in tqdm(files):
             # Skip if we already got this directory results
             if os.path.isdir(dir_path):
                 if 'config.json' in os.listdir(dir_path):
+                    print('H')
                     continue
                 if os.path.exists(os.path.join(dir_path, 'populations')) and \
                             len(os.listdir(os.path.join(dir_path, 'populations'))) == 100:
+                    print('I')
                     continue
             files.append(file_n)
 
@@ -90,7 +91,7 @@ for file_n in tqdm(files):
             cfg = {'evaluator':'logisticRegressionEvaluator',\
                    'rep':'binary',
                    'n_genes':59,\
-                   'gene_size':gene_size
+                   'gene_size':gene_size,\
                    'min':-10.0,\
                    'max':10.0,\
                    'dtype':float,\
@@ -105,7 +106,7 @@ for file_n in tqdm(files):
                    'standardize':True,\
                    'has_constant':True,\
                    'dir_path':dir_path,\
-                   'disable_tqdm':True
+                   'disable_tqdm':False
                   }
 
             ga = pygenalg.geneticAlgorithm(config=cfg)
