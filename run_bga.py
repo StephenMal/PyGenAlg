@@ -1,4 +1,5 @@
 import pygenalg
+from pygenalg.populations.basics.basicPopulation import basicPopulation
 from psuedologger import psuedologger
 import json, os
 import numpy as np
@@ -54,10 +55,15 @@ for file_n in tqdm(files):
             # Get the directory
             split = file_n.split('-')
 
-            dir_path = f'results/bga-{split[0]}-{split[1]}-{split[2]}-{gene_size}/'
+            dir_path = f'test_res/bga-{split[0]}-{split[1]}-{split[2]}-{gene_size}/'
+            indv = split[0]
+            track = split[1]
+            turn = split[2]
 
             # Skip if we already got this directory results
             if os.path.isdir(dir_path):
+                continue
+                '''
                 if 'config.json' in os.listdir(dir_path):
                     print('H')
                     continue
@@ -65,6 +71,7 @@ for file_n in tqdm(files):
                             len(os.listdir(os.path.join(dir_path, 'populations'))) == 100:
                     print('I')
                     continue
+                '''
             files.append(file_n)
 
 
@@ -96,13 +103,13 @@ for file_n in tqdm(files):
                    'max':10.0,\
                    'dtype':float,\
                    'log':log,\
-                   'n_runs':50,\
-                   'n_gens':200,\
+                   'n_runs':2,\
+                   'n_gens':5,\
                    'train_feats':feats,\
                    'train_lbls':lbls, \
                    'test_feats':test_feats,\
                    'test_lbls':test_lbls,\
-                   'store_each_gen':True,\
+                   'store_gen_sum':True,\
                    'standardize':True,\
                    'has_constant':True,\
                    'dir_path':dir_path,\
@@ -112,8 +119,9 @@ for file_n in tqdm(files):
             ga = pygenalg.geneticAlgorithm(config=cfg)
 
             x = ga.run()
+
         except KeyboardInterrupt:
             exit()
         except Exception as e:
-            tqdm.write(f'Failed {dir_path}')
+            tqdm.write(f'Failed {dir_path} \n{str(e)}')
             continue

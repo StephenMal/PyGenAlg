@@ -17,6 +17,8 @@ from collections import namedtuple
 from time import sleep
 import sys, random, json, os
 
+from statistics import mean, stdev
+
 class generationStructure(basicStructure):
 
     __slots__ = ()
@@ -84,7 +86,12 @@ class generationStructure(basicStructure):
         else:
             store_each_gen = kargs.get('store_each_gen', False)
 
-        if store_each_gen:
+        if 'store_gen_sum' in self.config:
+            store_gen_sum = self.config.get('store_gen_sum', dtype=bool)
+        else:
+            store_gen_sum = kargs.get('store_gen_sum', False)
+
+        if store_each_gen or store_gen_sum:
             gen_dir = self.create_dir(prefix=outdir, fol_name='populations')
 
         # Get n_runs & n_gens
@@ -167,6 +174,9 @@ class generationStructure(basicStructure):
             if store_each_gen:
                 popfile = open(os.path.join(gen_dir, f'run{run}.json'), 'w')
                 json.dump(parents.pack(), popfile)
+            if store_gen_sum:
+                sumfile = open(os.path.join(gen_dir, f'gensum{run}.json'), 'w')
+
 
 
             # Iterate through the generations
@@ -213,16 +223,26 @@ class generationStructure(basicStructure):
                 if store_each_gen:
                     popfile.write('\n')
                     json.dump(parents.pack(), popfile)
+                if store_gen_sum:
+                    sumfile.write('\n')
+                    attrs = parents.consolidate_attrs()
+                    json.dump(\
+                        {'mean':parents.mean(), 'ci':parents.mean(z=1.96)[1],\
+                         'stdev':parents.stdev(), 'nstdev':parents.nstdev(),
+                         'max':parents.max(), 'min':parents.min(),\
+                         'mean_train_acc':mean(attrs['train_acc']),\
+                         'stdev_test_acc':stdev(attrs['train_acc']),\
+                         'mean_test_acc':mean(attrs['test_acc']),\
+                         'stdev_test_acc':stdev(attrs['test_acc'])}, sumfile)
 
             best_fit = evaluator.get_best(level=3)['fit']
             runbar.set_postfix_str(f'Best Fit: {round(best_fit, 4)}')
             with open(os.path.join(outdir, 'solution_indv.json'), 'w') as F:
                 json.dump(evaluator.get_best(level=3), F)
 
-            if store_each_gen:
+            if store_each_gen or store_gen_sum:
                 with open(os.path.join(gen_dir, f'sol{run}.json'), 'w') as F:
                     json.dump(evaluator.get_best(level=3), F)
-
 
             genbar.reset()
 
@@ -238,6 +258,8 @@ class generationStructure(basicStructure):
 
             if store_each_gen:
                 popfile.close()
+            if store_gen_sum:
+                sumfile.close()
 
         genbar.close()
         runbar.close()

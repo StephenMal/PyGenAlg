@@ -311,7 +311,7 @@ class basicChromosome(basicComponent):
 
         # Handle varlen
         if 'varlen' in kargs:
-            self.set_varlen(kargs.get('varlen'))
+            self.set_varlen(False)#kargs.get('varlen', self.DEFAULT_varlen is True))
 
         if self.varlen is True:
             if self.maxlen is not None and self.minlen is not None and \

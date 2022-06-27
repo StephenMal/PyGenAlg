@@ -184,6 +184,10 @@ class binaryChromosome(basicChromosome):
                                         break
                                 yield i, sub
 
+        def unpack(cls, dct, **kargs):
+            kargs['varlen'] = False
+            super().unpack(dct)
+
 class binaryIndividual(basicIndividual):
 
     __slots__ = 'mtype', 'maxm', 'minm', 'signbit', 'n_genes', 'gene_size'
@@ -430,7 +434,7 @@ class binaryIndividual(basicIndividual):
                         self.mtype == int, \
                         self.signbit, \
                         minm, maxm)
-                        
+
     def pack(self, **kargs):
         dct = super().pack(**kargs)
 
@@ -438,6 +442,8 @@ class binaryIndividual(basicIndividual):
             dct['chromo'] = self.chromo.pack(**kargs)
         if self.n_genes is None:
             raise MissingPackingVal(argname='n_genes')
+        dct['n_genes'] = self.n_genes
+        dct['gene_size'] = self.gene_size
 
         if self.mtype is int:
             if self.signbit is None:
@@ -483,7 +489,9 @@ class binaryIndividual(basicIndividual):
             newdct['length'] = dct.get('length', len(newdct['chromo']))
         else:
             newdct['length'] = dct.get('length')
-        newdct['nbits'] = dct.get('nbits', length / n_genes)
+
+        n_genes = dct.get('n_genes')
+        newdct['gene_size'] = dct.get('gene_size', length / n_genes)
 
         # Either get or calculate other values
         if newdct['length'] % newdct['nbits'] != 0:
